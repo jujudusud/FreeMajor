@@ -54,12 +54,22 @@ jobs:
       run: |
         echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
 
-    - name: Prepare dépendencies
+    - name: install cmake
       run: sudo apt-get install cmake
+
+    - name: install build-essential
       run: sudo apt-get install build-essential
+
+    - name: install libasound2-dev
       run: sudo apt-get install libasound2-dev
+
+    - name: install libjack-jackd2-dev
       run: sudo apt-get install libjack-jackd2-dev
+
+    - name: install libfltk1.3-dev
       run: sudo apt-get install libfltk1.3-dev
+
+    - name: install gettext
       run: sudo apt-get install gettext
 
     - name: Configure CMake
