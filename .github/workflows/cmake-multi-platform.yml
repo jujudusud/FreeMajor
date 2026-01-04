@@ -56,7 +56,12 @@ jobs:
 
     - name: Prepare dépendencies
       run: >
-        sudo apt-get install cmake build-essential libasound2-dev libjack-jackd2-dev libfltk1.3-dev gettext
+        sudo apt-get install cmake
+        sudo apt-get install build-essential
+        sudo apt-get install libasound2-dev
+        sudo apt-get install libjack-jackd2-dev
+        sudo apt-get install libfltk1.3-dev
+        sudo apt-get install gettext
 
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
