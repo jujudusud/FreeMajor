@@ -28,6 +28,7 @@ set(FLTK_SKIP_OPENGL ON)
 set(FLTK_SKIP_FORMS ON)
 set(FLTK_SKIP_IMAGES ON)
 set(FLTK_SKIP_FLUID ON)
+
 find_package(FLTK REQUIRED)
 
 set(MACOSX_BUNDLE_ICON_FILE "FreeMajor.icns")
@@ -60,9 +61,8 @@ add_executable(FreeMajor WIN32 MACOSX_BUNDLE
 target_compile_definitions(FreeMajor
   PRIVATE "PROJECT_VERSION=\"${PROJECT_VERSION}\""
   PRIVATE "LOCALE_DIRECTORY=\"${CMAKE_INSTALL_FULL_LOCALEDIR}\"")
-target_include_directories(FreeMajor
-  PRIVATE "sources" "${FLTK_INCLUDE_DIR}")
-target_link_libraries(FreeMajor PRIVATE "${FLTK_LIBRARIES}")
+  target_include_directories(FreeMajor PRIVATE sources)
+  target_link_libraries(FreeMajor PRIVATE fltk::fltk)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
   add_custom_command(TARGET FreeMajor POST_BUILD
