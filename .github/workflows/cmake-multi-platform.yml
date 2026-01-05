@@ -73,7 +73,6 @@ jobs:
       uses: lukka/run-vcpkg@v11
       with:
         vcpkgDirectory: ${{ github.workspace }}/vcpkg
-        vcpkgGitCommitId: 'master'
 
     - name: Install FLTK (Windows)
       if: runner.os == 'Windows'
