@@ -62,7 +62,14 @@ target_compile_definitions(FreeMajor
   PRIVATE "PROJECT_VERSION=\"${PROJECT_VERSION}\""
   PRIVATE "LOCALE_DIRECTORY=\"${CMAKE_INSTALL_FULL_LOCALEDIR}\"")
   target_include_directories(FreeMajor PRIVATE sources)
-  target_link_libraries(FreeMajor PRIVATE fltk::fltk)
+  if(TARGET fltk::fltk)
+    # FLTK moderne (vcpkg, brew, builds récents)
+    target_link_libraries(FreeMajor PRIVATE fltk::fltk)
+  else()
+    # FLTK ancien (Ubuntu / Debian)
+    target_include_directories(FreeMajor PRIVATE ${FLTK_INCLUDE_DIR})
+    target_link_libraries(FreeMajor PRIVATE ${FLTK_LIBRARIES})
+  endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
   add_custom_command(TARGET FreeMajor POST_BUILD
