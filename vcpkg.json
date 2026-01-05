@@ -3,6 +3,5 @@
   "version-string": "1.0.1",
   "dependencies": [
     "fltk"
-  ],
-  "builtin-baseline": "a42c2e7b8fbb4f2a5b0a68c1c6d6d6c9f98b9c01"
+  ]
 }
