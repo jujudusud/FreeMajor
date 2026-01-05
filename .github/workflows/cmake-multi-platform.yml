@@ -77,7 +77,7 @@ jobs:
     - name: Install FLTK (Windows)
       if: runner.os == 'Windows'
       run: |
-        .\vcpkg\vcpkg install fltk
+        .\vcpkg\vcpkg install
 
     - name: Configure CMake (Linux)
       if: runner.os == 'Linux'
