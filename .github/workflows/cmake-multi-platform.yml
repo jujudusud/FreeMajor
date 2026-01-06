@@ -68,16 +68,18 @@ jobs:
         libfltk1.3-dev \
         gettext
 
-    - name: Setup vcpkg
+    - name: Setup vcpkg with cache
       if: runner.os == 'Windows'
       uses: lukka/run-vcpkg@v11
       with:
         vcpkgDirectory: ${{ github.workspace }}/vcpkg
+        vcpkgArgs: install
+        cache: true
 
-    - name: Install FLTK (Windows)
-      if: runner.os == 'Windows'
-      run: |
-        .\vcpkg\vcpkg install
+#    - name: Install FLTK (Windows)
+#      if: runner.os == 'Windows'
+#      run: |
+#        .\vcpkg\vcpkg install
 
     - name: Configure CMake (Linux)
       if: runner.os == 'Linux'
