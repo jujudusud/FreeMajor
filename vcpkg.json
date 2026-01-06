@@ -2,8 +2,7 @@
   "name": "freemajor",
   "version-string": "1.0.1",
   "dependencies": [
-    "fltk",
-    "rtmidi"
+    "fltk"
   ],
   "builtin-baseline": "e3db8f65d2414c301c29a8467c6aee94e3ba09fc"
 }
