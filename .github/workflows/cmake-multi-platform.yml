@@ -109,17 +109,8 @@ jobs:
       run: |
         cpack -G TGZ
         mkdir -p ../release
-        cp FreeMajor-1.0.1-Source.tar.gz ../release/
-      if: runner.os == 'Linux' || runner.os == 'macOS'
-
-    - name: Package tar.gz (Windows)
-      working-directory: ${{ steps.strings.outputs.build-output-dir }}
-      shell: bash
-      run: |
-        cpack -G TGZ
-        mkdir -p ..\release
-        copy FreeMajor-1.0.1-Source.tar.gz ..\release\
-      if: runner.os == 'Windows'
+        cp FreeMajor-1.0.1.Linux.tar.gz ../release/
+      if: runner.os == 'Linux'
 
     - name: Test
       working-directory: ${{ steps.strings.outputs.build-output-dir }}
