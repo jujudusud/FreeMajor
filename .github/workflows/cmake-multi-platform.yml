@@ -81,11 +81,10 @@ jobs:
     - name: Setup vcpkg with cache
       if: runner.os == 'Windows'
       uses: lukka/run-vcpkg@v11
-      env:
-        VCPKG_ROOT: C:\vcpkg
-        VCPKG_TARGET_TRIPLET: x64-windows
       with:
-        vcpkgDirectory: ${{ github.workspace }}/vcpkg
+        vcpkgDirectory: '${{ runner.temp }}/vcpkg'
+        vcpkgTriplet: x64-windows
+        manifestFilepath: 'vcpkg.json'
         vcpkgArgs: install
         cache: true
         
