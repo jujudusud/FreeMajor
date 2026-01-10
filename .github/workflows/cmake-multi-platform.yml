@@ -10,43 +10,45 @@ on:
 jobs:
   build:
     runs-on: ${{ matrix.runner }}
-
     strategy:
-      # Set fail-fast to false to ensure that feedback is delivered for all matrix combinations.
-      # Consider changing this to true when your workflow is stable.
       fail-fast: false
       matrix:
-        os: [ubuntu, windows, macos]
-        build_type: [Release]
-        c_compiler: [gcc, clang, cl]
         include:
-          # Linux x86_64
-          - os: ubuntu
-            runner: ubuntu-latest
+          # Linux x86_64 gcc
+          - runner: ubuntu-latest
+            os: ubuntu
             arch: x86_64
             c_compiler: gcc
             cpp_compiler: g++
+            
+          # Linux x86_64 clang  
+          - runner: ubuntu-latest
+            os: ubuntu
+            arch: x86_64
+            c_compiler: clang
+            cpp_compiler: clang++
 
-          # Windows x86_64
-          - os: windows
-            runner: windows-latest
+          # Windows x86_64 MSVC
+          - runner: windows-latest
+            os: windows
             arch: x86_64
             c_compiler: cl
             cpp_compiler: cl
 
-          # macOS Intel
-          - os: macos
-            runner: macos-13        # x86_64
+          # macOS Intel x86_64
+          - runner: macos-13
+            os: macos
             arch: x86_64
             c_compiler: clang
             cpp_compiler: clang++
 
-          # macOS Apple Silicon
-          - os: macos
-            runner: macos-14        # arm64
+          # macOS ARM64
+          - runner: macos-14
+            os: macos
             arch: arm64
             c_compiler: clang
             cpp_compiler: clang++
+
         exclude:
           - os: windows
             c_compiler: gcc
