@@ -88,12 +88,6 @@ jobs:
         vcpkgDirectory: ${{ github.workspace }}/vcpkg
         vcpkgArgs: install
         cache: true
-
-    - name: Install FLTK (Windows)
-      if: matrix.os == 'windows'
-      shell: powershell
-      run: |
-        .\vcpkg\vcpkg install fltk:x64-windows
         
     - name: Configure CMake
       run: >
