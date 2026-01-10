@@ -109,7 +109,8 @@ jobs:
       run: |
         cpack -G TGZ
         mkdir -p ../release
-        cp FreeMajor-1.0.1.Linux.tar.gz ../release/
+        mv FreeMajor-1.0.1-* FreeMajor-1.0.1.tar.gz
+        cp FreeMajor-1.0.1.tar.gz ../release/
       if: runner.os == 'Linux'
 
     - name: Test
