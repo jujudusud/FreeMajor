@@ -49,14 +49,6 @@ jobs:
             c_compiler: clang
             cpp_compiler: clang++
 
-        exclude:
-          - os: windows
-            c_compiler: gcc
-          - os: windows
-            c_compiler: clang
-          - os: ubuntu
-            c_compiler: cl
-
     steps:
     - uses: actions/checkout@v4
       with:
