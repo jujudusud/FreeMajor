@@ -81,11 +81,20 @@ jobs:
     - name: Setup vcpkg with cache
       if: runner.os == 'Windows'
       uses: lukka/run-vcpkg@v11
+      env:
+        VCPKG_ROOT: C:\vcpkg
+        VCPKG_TARGET_TRIPLET: x64-windows
       with:
         vcpkgDirectory: ${{ github.workspace }}/vcpkg
         vcpkgArgs: install
         cache: true
 
+    - name: Install FLTK (Windows)
+      if: matrix.os == 'windows'
+      shell: powershell
+      run: |
+        .\vcpkg\vcpkg install fltk:x64-windows
+        
     - name: Configure CMake
       run: >
         cmake -B ${{ steps.strings.outputs.build-output-dir }}
@@ -103,6 +112,7 @@ jobs:
         else
           cmake --build ${{ steps.strings.outputs.build-output-dir }}
         fi
+        
     - name: Package tar.gz
       working-directory: ${{ steps.strings.outputs.build-output-dir }}
       shell: bash
@@ -145,7 +155,7 @@ jobs:
           tag_name: automatic
           prerelease: true
           files: |
-            release/FreeMajor-1.0.1-Source.tar.gz
+            release/FreeMajor-1.0.1-Linux.tar.gz
             release/**/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
