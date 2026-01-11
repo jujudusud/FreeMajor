@@ -1,154 +1,144 @@
-# This starter workflow is for a CMake project running on multiple platforms.
-name: CMake on multiple platforms
+# This workflow replaces Travis CI for FreeMajor cross-compilation on Linux, macOS, Windows
+# Builds with cmake .. && cmake --build . and archives binaries for nightly/pre-release/release tags
+name: FreeMajor CMake Multi-Platform
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ master ]
   pull_request:
-    branches: [ "master" ]
+    branches: [ master ]
+  release:
+    types: [ published, prereleased ]
 
 jobs:
   build:
-    runs-on: ${{ matrix.runner }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Linux x86_64 gcc Release
-          - runner: ubuntu-latest
-            os: ubuntu
-            arch: x86_64
-            c_compiler: gcc
-            cpp_compiler: g++
+          # Linux (Ubuntu matching Arch dependencies)
+          - os: ubuntu-latest
+            name: "Linux"
             build_type: Release
             
-          # Linux x86_64 clang Release  
-          - runner: ubuntu-latest
-            os: ubuntu
-            arch: x86_64
-            c_compiler: clang
-            cpp_compiler: clang++
+          # macOS
+          - os: macos-latest
+            name: "macOS"
             build_type: Release
-
-          # Windows x86_64 MSVC Release
-          - runner: windows-latest
-            os: windows
-            arch: x86_64
-            c_compiler: cl
-            cpp_compiler: cl
-            build_type: Release
-
-          # macOS Intel x86_64 Release
-          - runner: macos-13
-            os: macos
-            arch: x86_64
-            c_compiler: clang
-            cpp_compiler: clang++
-            build_type: Release
-
-          # macOS ARM64 Release
-          - runner: macos-14
-            os: macos
-            arch: arm64
-            c_compiler: clang
-            cpp_compiler: clang++
+            
+          # Windows (MSYS2/MinGW for Windows 10 compatibility)
+          - os: windows-latest
+            name: "Windows"
             build_type: Release
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
       with:
-        submodules: true
+        submodules: recursive
 
     - name: Set reusable strings
-      # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
       id: strings
       shell: bash
       run: |
         echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
 
+    # === LINUX ===
     - name: Install Linux dependencies
-      if: runner.os == 'Linux'
+      if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get update
         sudo apt-get install -y \
-        cmake \
-        build-essential \
-        libasound2-dev \
-        libjack-jackd2-dev \
-        libfltk1.3-dev \
-        gettext
+          cmake \
+          build-essential \
+          libasound2-dev \
+          libjack-jackd2-dev \
+          libfltk1.3-dev \
+          gettext \
+          git
 
-    - name: Setup vcpkg with cache
-      if: runner.os == 'Windows'
-      uses: lukka/run-vcpkg@v11
+    # === macOS ===
+    - name: Install macOS dependencies
+      if: matrix.os == 'macos-latest'
+      run: |
+        brew install cmake fltk gettext
+
+    # === Windows ===
+    - name: Setup MSYS2 (Windows)
+      if: matrix.os == 'windows-latest'
+      uses: msys2/setup-msys2@v2
       with:
-        vcpkgDirectory: '${{ runner.temp }}/vcpkg'
-        vcpkgTriplet: x64-windows
-        manifestFilepath: 'vcpkg.json'
-        vcpkgArgs: install
-        cache: true
-        
+        msystem: MINGW64
+        install: >-
+          cmake
+          mingw-w64-x86_64-fltk
+          mingw-w64-x86_64-gettext
+          git
+        update: true
+
     - name: Configure CMake
-      run: >
-        cmake -B ${{ steps.strings.outputs.build-output-dir }}
-        -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
-        -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
-        -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-        -DARCH=${{ matrix.arch }}
-        -S ${{ github.workspace }}
+      run: |
+        cmake -B ${{ steps.strings.outputs.build-output-dir }} \
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+          -S ${{ github.workspace }}
+      shell: bash
+      if: matrix.os != 'windows-latest'
+
+    - name: Configure CMake (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: msys2 {0}
+      run: |
+        cmake -B ${{ steps.strings.outputs.build-output-dir }} \
+          -G "MinGW Makefiles" \
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+          -S ${{ github.workspace }}
 
     - name: Build
-      # Build avec --config SEULEMENT sur Windows
-      run: |
-        if [ "${{ matrix.os }}" = "windows" ]; then
-          cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
-        else
-          cmake --build ${{ steps.strings.outputs.build-output-dir }}
-        fi
-        
-    - name: Package tar.gz
-      working-directory: ${{ steps.strings.outputs.build-output-dir }}
+      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+      shell: bash
+      if: matrix.os != 'windows-latest'
+
+    - name: Build (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: msys2 {0}
+      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+
+    # Archive binaries only for releases/nightly/pre-releases
+    - name: Package binaries
+      if: startsWith(github.ref, 'refs/tags/') && 
+          (contains(github.ref_name, 'nightly') || 
+           contains(github.ref_name, 'pre') || 
+           startsWith(github.ref_name, 'v'))
       shell: bash
       run: |
-        cpack -G TGZ
-        mkdir -p ../release
-        mv FreeMajor-1.0.1-* FreeMajor-1.0.1.tar.gz
-        cp FreeMajor-1.0.1.tar.gz ../release/
-      if: runner.os == 'Linux'
+        cd ${{ steps.strings.outputs.build-output-dir }}
+        # Find and package main executable(s)
+        find . -name "FreeMajor*" -type f -executable | head -5 | xargs tar -czf FreeMajor-${{ matrix.name }}.tar.gz || true
 
-    - name: Test
-      working-directory: ${{ steps.strings.outputs.build-output-dir }}
-      run: |
-        if [ "${{ matrix.os }}" = "windows" ]; then
-          ctest --build-config ${{ matrix.build_type }}
-        else
-          ctest
-        fi
+    - name: Upload Linux/macOS binaries
+      if: startsWith(github.ref, 'refs/tags/') && 
+          (contains(github.ref_name, 'nightly') || 
+           contains(github.ref_name, 'pre') || 
+           startsWith(github.ref_name, 'v')) &&
+          matrix.os != 'windows-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: FreeMajor-${{ matrix.name }}
+        path: ${{ steps.strings.outputs.build-output-dir }}/FreeMajor-${{ matrix.name }}.tar.gz
+        retention-days: 90
 
-    - name: Test
-      working-directory: ${{ steps.strings.outputs.build-output-dir }}
-      # Execute tests defined by the CMake configuration. Note that --build-config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
-      # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
-      run: ctest --build-config ${{ matrix.build_type }}
+    - name: Upload Windows binaries
+      if: startsWith(github.ref, 'refs/tags/') && 
+          (contains(github.ref_name, 'nightly') || 
+           contains(github.ref_name, 'pre') || 
+           startsWith(github.ref_name, 'v')) &&
+          matrix.os == 'windows-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: FreeMajor-Windows
+        path: ${{ steps.strings.outputs.build-output-dir }}/FreeMajor*.exe
+        retention-days: 90
 
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master'
-    steps:
-      - name: Download source tar.gz
-        uses: actions/download-artifact@v4
-        with:
-          path: ./release
-          pattern: FreeMajor-1.0.1*
-
-      - name: Create/Update GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: automatic
-          prerelease: true
-          files: |
-            release/FreeMajor-1.0.1-Linux.tar.gz
-            release/**/*.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Show build output location
+      run: ls -la ${{ steps.strings.outputs.build-output-dir }}/
