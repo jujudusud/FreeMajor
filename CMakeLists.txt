@@ -9,8 +9,6 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm|aarch64|ARM64")
     set(PLATFORM "arm64")
 elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|amd64")
     set(PLATFORM "x86_64")
-elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "i.86")
-    set(PLATFORM "x86")
 endif()
 
 # Windows APIs
