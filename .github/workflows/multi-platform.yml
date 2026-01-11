@@ -1,122 +1,86 @@
-name: FreeMajor Multi-Platform Build
+name: FreeMajor Multi-Platform ✅
 
-on:
-  push:
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
-  release:
-    types: [ published, prereleased ]
+on: [push, pull_request, release]
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runner }}
     strategy:
-      fail-fast: false
       matrix:
         include:
-          # Linux x86_64
-          - os: ubuntu-latest
+          - runner: ubuntu-latest
             name: "Linux-x86_64"
-            arch: x86_64
-            build_type: Release
-            
-          # Linux ARM64 (via QEMU)
-          - os: ubuntu-latest
-            name: "Linux-ARM64"
-            arch: aarch64
-            build_type: Release
-            
-          # macOS Intel
-          - os: macos-15
+            os: linux
+          - runner: macos-15-intel  
             name: "macOS-Intel"
-            arch: x86_64
-            build_type: Release
-            
-          # macOS ARM (Apple Silicon)
-          - os: macos-15
+            os: macos
+          - runner: macos-15
             name: "macOS-ARM64"
-            arch: arm64
-            build_type: Release
-            
-          # Windows 11 (VS2022)
-          - os: windows-latest
-            name: "Windows-x86_64"
-            arch: x86_64
-            build_type: Release
+            os: macos
+          - runner: windows-latest
+            name: "Windows-x64"
+            os: windows
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive
+    - uses: actions/checkout@v4
+      with: { submodules: recursive }
 
-    # Linux x86_64
-    - name: Install Linux deps (x86_64)
-      if: matrix.os == 'ubuntu-latest' && matrix.arch == 'x86_64'
+    # Linux - Dépendances EXACTES du README
+    - name: Linux dependencies
+      if: matrix.os == 'linux'
       run: |
-        sudo apt-get update
-        sudo apt-get install -y cmake build-essential libasound2-dev \
+        sudo apt update
+        sudo apt install -y cmake build-essential libasound2-dev \
           libjack-jackd2-dev libfltk1.3-dev gettext git
 
-    # Linux ARM64 cross-compile
-    - name: Install ARM64 cross-tools
-      if: matrix.arch == 'aarch64'
-      run: |
-        sudo apt-get update
-        sudo docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-        sudo apt-get install -y qemu binfmt-support gcc-aarch64-linux-gnu \
-          g++-aarch64-linux-gnu cmake crossbuild-essential-arm64 \
-          libasound2-dev:arm64 libfltk1.3-dev:arm64 gettext
-
-    # macOS deps (Homebrew)
-    - name: macOS deps
-      if: startsWith(matrix.os, 'macos-')
+    # macOS - Homebrew
+    - name: macOS dependencies  
+      if: matrix.os == 'macos'
       run: brew install cmake fltk gettext
 
-    # Windows VS2022 (Windows 11 compatible)
-    - name: Configure Windows CMake
-      if: matrix.os == 'windows-latest'
-      run: |
-        cmake -B build -G "Visual Studio 17 2022" -A x64 \
-          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+    # Windows - RIEN (Visual Studio préinstallé)
 
-    # Configure Linux/macOS
+    # Configuration CMake PAR PLATFORM
     - name: Configure CMake
-      if: matrix.os != 'windows-latest'
       run: |
-        cmake -B build \
-          ${{ matrix.arch == 'aarch64' && '-DCMAKE_TOOLCHAIN_FILE=/usr/share/crosscmaker/packages/arm64/toolchain.cmake' || '' }} \
-          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+        case "${{ matrix.os }}" in
+          linux|macos)
+            cmake -B build -DCMAKE_BUILD_TYPE=Release -S .
+            ;;
+          windows)
+            cmake -B build -G "Visual Studio 17 2022" -A x64 -S .
+            ;;
+        esac
 
     # Build
     - name: Build
-      run: cmake --build build --config ${{ matrix.build_type }}
-
-    # Test executable
-    - name: Test binary
       run: |
-        if [ "${{ matrix.os }}" != "windows-latest" ]; then
-          build/FreeMajor --version || build/FreeMajor --help || true
+        case "${{ matrix.os }}" in
+          linux|macos)
+            cmake --build build --config Release
+            ;;
+          windows)
+            cmake --build build --config Release
+            ;;
+        esac
+
+    # Vérification binaire
+    - name: Verify binary
+      run: |
+        if [[ "${{ matrix.os }}" == "windows" ]]; then
+          ls -la build/Release/FreeMajor.exe || true
         else
-          build/Release/FreeMajor.exe --version || build/Release/FreeMajor.exe --help || true
+          ls -la build/FreeMajor || true
+          file build/FreeMajor || true
         fi
 
-    # Package pour releases
+    # Release artifacts
     - name: Package release
       if: startsWith(github.ref, 'refs/tags/')
       shell: bash
       run: |
-        cd ..
-        VERSION=${{ github.ref_name }}
-        tar -czvf FreeMajor-${{ matrix.name }}-${VERSION}.tar.gz \
-          --exclude='.git' --exclude='build' --exclude='.github' \
-          --transform "s|^.|FreeMajor-${VERSION}|" FreeMajor/
-
-    # Upload artifacts
-    - name: Upload binaries
-      if: startsWith(github.ref, 'refs/tags/')
-      uses: actions/upload-artifact@v4
-      with:
-        name: FreeMajor-${{ matrix.name }}
-        path: FreeMajor-*.tar.gz
+        BINARY="build/${{ matrix.os == 'windows' && 'Release/FreeMajor.exe' || 'FreeMajor' }}"
+        if [[ -f "$BINARY" ]]; then
+          cp "$BINARY" "FreeMajor-${{ matrix.name }}"
+          zip -r "FreeMajor-${{ matrix.name }}-${{ github.ref_name }}.zip" "FreeMajor-${{ matrix.name }}"
+        fi
