@@ -1,4 +1,4 @@
-# FreeMajor CMake Multi-Platform - FIXED Windows MSYS2 COMPILER ISSUE
+# FreeMajor CMake Multi-Platform - FIXED Windows Windows.h issue
 name: FreeMajor CMake Multi-Platform
 
 on:
@@ -24,9 +24,11 @@ jobs:
             name: "macOS"
             build_type: Release
             
+          # Windows avec Visual Studio (plus simple que MSYS2)
           - os: windows-latest
             name: "Windows"
             build_type: Release
+            generator: "Visual Studio 17 2022"
 
     steps:
     - name: Checkout code
@@ -60,22 +62,14 @@ jobs:
       run: |
         brew install cmake fltk gettext
 
-    # === Windows - FIXED with NINJA ===
-    - name: Setup MSYS2 (Windows)
+    # === Windows Visual Studio ===
+    - name: Configure CMake (Windows)
       if: matrix.os == 'windows-latest'
-      uses: msys2/setup-msys2@v2
-      with:
-        msystem: MINGW64
-        path-type: minimal
-        install: >-
-          mingw-w64-x86_64-cmake
-          mingw-w64-x86_64-ninja
-          mingw-w64-x86_64-fltk
-          mingw-w64-x86_64-gettext
-          mingw-w64-x86_64-gcc
-          mingw-w64-x86_64-cc
-          git
-        update: true
+      run: |
+        cmake -B ${{ steps.strings.outputs.build-output-dir }} \
+          -G "${{ matrix.generator }}" \
+          -A x64 \
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
 
     # Configure Linux/macOS
     - name: Configure CMake (Linux/macOS)
@@ -85,70 +79,31 @@ jobs:
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
           -S ${{ github.workspace }}
 
-    # FIXED: Windows uses NINJA generator (MSYS2 recommended)
-    - name: Configure CMake (Windows)
-      if: matrix.os == 'windows-latest'
-      shell: msys2 {0}
-      run: |
-        SOURCE_DIR=$(pwd)
-        mkdir -p build
-        cd build
-        cmake "$SOURCE_DIR" \
-          -G Ninja \
-          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-          -DCMAKE_C_COMPILER=gcc \
-          -DCMAKE_CXX_COMPILER=g++
-
-    # Build Linux/macOS
-    - name: Build (Linux/macOS)
-      if: matrix.os != 'windows-latest'
+    # Build TOUS les OS
+    - name: Build
       run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
-
-    # Build Windows with NINJA
-    - name: Build (Windows)
-      if: matrix.os == 'windows-latest'
-      shell: msys2 {0}
-      working-directory: ${{ github.workspace }}/build
-      run: cmake --build . --config ${{ matrix.build_type }}
 
     # Debug output
     - name: List build results
       if: always()
-      run: find ${{ steps.strings.outputs.build-output-dir }} -name "*FreeMajor*" -type f 2>/dev/null || true
+      run: |
+        find ${{ steps.strings.outputs.build-output-dir }} -name "*FreeMajor*" -type f 2>/dev/null || true
       shell: bash
 
     # Archive releases only
-    - name: Package Linux/macOS
+    - name: Package binaries
       if: startsWith(github.ref, 'refs/tags/') && 
           (contains(github.ref_name, 'nightly') || contains(github.ref_name, 'pre') || startsWith(github.ref_name, 'v'))
       shell: bash
       run: |
         cd ${{ steps.strings.outputs.build-output-dir }}
-        find . -name "*FreeMajor*" -type f -executable | head -5 | xargs tar -czf FreeMajor-${{ matrix.name }}.tar.gz || true
+        find . -name "*FreeMajor*" -type f -executable 2>/dev/null | head -5 | xargs tar -czf FreeMajor-${{ matrix.name }}.tar.gz || true
 
-    - name: Upload Linux/macOS
+    - name: Upload binaries
       if: startsWith(github.ref, 'refs/tags/') && 
-          (contains(github.ref_name, 'nightly') || contains(github.ref_name, 'pre') || startsWith(github.ref_name, 'v')) &&
-          matrix.os != 'windows-latest'
+          (contains(github.ref_name, 'nightly') || contains(github.ref_name, 'pre') || startsWith(github.ref_name, 'v'))
       uses: actions/upload-artifact@v4
       with:
         name: FreeMajor-${{ matrix.name }}
         path: ${{ steps.strings.outputs.build-output-dir }}/*.tar.gz
-
-    - name: Package Windows
-      if: startsWith(github.ref, 'refs/tags/') && 
-          (contains(github.ref_name, 'nightly') || contains(github.ref_name, 'pre') || startsWith(github.ref_name, 'v')) &&
-          matrix.os == 'windows-latest'
-      shell: msys2 {0}
-      working-directory: ${{ github.workspace }}/build
-      run: |
-        find . -name "*FreeMajor*" -type f -executable | head -5 | xargs tar -czf FreeMajor-Windows.tar.gz || true
-
-    - name: Upload Windows
-      if: startsWith(github.ref, 'refs/tags/') && 
-          (contains(github.ref_name, 'nightly') || contains(github.ref_name, 'pre') || startsWith(github.ref_name, 'v')) &&
-          matrix.os == 'windows-latest'
-      uses: actions/upload-artifact@v4
-      with:
-        name: FreeMajor-Windows
-        path: ${{ github.workspace }}/build/*.tar.gz
+        retention-days: 90
