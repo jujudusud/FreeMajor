@@ -1,86 +1,94 @@
-name: FreeMajor Multi-Platform ✅
+# FreeMajor CMake Multi-Platform - Linux + macOS
+name: FreeMajor CMake Multi-Platform
 
-on: [push, pull_request, release]
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  release:
+    types: [ published, prereleased ]
 
 jobs:
   build:
-    runs-on: ${{ matrix.runner }}
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - runner: ubuntu-latest
-            name: "Linux-x86_64"
-            os: linux
-          - runner: macos-15-intel  
-            name: "macOS-Intel"
-            os: macos
-          - runner: macos-15
-            name: "macOS-ARM64"
-            os: macos
-          - runner: windows-latest
-            name: "Windows-x64"
-            os: windows
+          - os: ubuntu-latest
+            name: "Linux"
+            build_type: Release
+            
+          - os: macos-latest
+            name: "macOS"
+            build_type: Release
 
     steps:
-    - uses: actions/checkout@v4
-      with: { submodules: recursive }
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
 
-    # Linux - Dépendances EXACTES du README
-    - name: Linux dependencies
-      if: matrix.os == 'linux'
-      run: |
-        sudo apt update
-        sudo apt install -y cmake build-essential libasound2-dev \
-          libjack-jackd2-dev libfltk1.3-dev gettext git
-
-    # macOS - Homebrew
-    - name: macOS dependencies  
-      if: matrix.os == 'macos'
-      run: brew install cmake fltk gettext
-
-    # Windows - RIEN (Visual Studio préinstallé)
-
-    # Configuration CMake PAR PLATFORM
-    - name: Configure CMake
-      run: |
-        case "${{ matrix.os }}" in
-          linux|macos)
-            cmake -B build -DCMAKE_BUILD_TYPE=Release -S .
-            ;;
-          windows)
-            cmake -B build -G "Visual Studio 17 2022" -A x64 -S .
-            ;;
-        esac
-
-    # Build
-    - name: Build
-      run: |
-        case "${{ matrix.os }}" in
-          linux|macos)
-            cmake --build build
-            ;;
-          windows)
-            cmake --build build --config Release
-            ;;
-        esac
-
-    # Vérification binaire
-    - name: Verify binary
-      run: |
-        if [[ "${{ matrix.os }}" == "windows" ]]; then
-          ls -la build/Release/FreeMajor.exe || true
-        else
-          ls -la build/FreeMajor || true
-          file build/FreeMajor || true
-        fi
-
-    # Release artifacts
-    - name: Package release
-      if: startsWith(github.ref, 'refs/tags/')
+    - name: Set reusable strings
+      id: strings
       shell: bash
       run: |
-        BINARY="build/${{ matrix.os == 'windows' && 'Release/FreeMajor.exe' || 'FreeMajor' }}"
-        if [[ -f "$BINARY" ]]; then
-          cp "$BINARY" "FreeMajor-${{ matrix.name }}"
-          zip -r "FreeMajor-${{ matrix.name }}-${{ github.ref_name }}.zip" "FreeMajor-${{ matrix.name }}"
-        fi
+        echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
+
+    # === LINUX ===
+    - name: Install Linux dependencies
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          cmake \
+          build-essential \
+          libasound2-dev \
+          libjack-jackd2-dev \
+          libfltk1.3-dev \
+          gettext \
+          git
+
+    # === macOS ===
+    - name: Install macOS dependencies
+      if: matrix.os == 'macos-latest'
+      run: |
+        brew install cmake fltk gettext
+
+    # Configure Linux/macOS
+    - name: Configure CMake (Linux/macOS)
+      if: matrix.os != 'windows-latest'
+      run: |
+        cmake -B ${{ steps.strings.outputs.build-output-dir }} \
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+          -S ${{ github.workspace }}
+
+    # Build TOUS les OS
+    - name: Build
+      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+
+    # Debug output
+    - name: List build results
+      if: always()
+      run: |
+        find ${{ steps.strings.outputs.build-output-dir }} -name "*FreeMajor*" -type f 2>/dev/null || true
+      shell: bash
+
+    # Archive releases only
+    - name: Package binaries
+      if: startsWith(github.ref, 'refs/tags/') && 
+          (contains(github.ref_name, 'nightly') || contains(github.ref_name, 'pre') || startsWith(github.ref_name, 'v'))
+      shell: bash
+      run: |
+        cd ${{ steps.strings.outputs.build-output-dir }}
+        find . -name "*FreeMajor*" -type f -executable 2>/dev/null | head -5 | xargs tar -czf FreeMajor-${{ matrix.name }}.tar.gz || true
+
+    - name: Upload binaries
+      if: startsWith(github.ref, 'refs/tags/') && 
+          (contains(github.ref_name, 'nightly') || contains(github.ref_name, 'pre') || startsWith(github.ref_name, 'v'))
+      uses: actions/upload-artifact@v4
+      with:
+        name: FreeMajor-${{ matrix.name }}
+        path: ${{ steps.strings.outputs.build-output-dir }}/*.tar.gz
+        retention-days: 90
