@@ -3,6 +3,28 @@ cmake_minimum_required(VERSION 3.25.1)
 project(FreeMajor VERSION "1.0.1" LANGUAGES CXX)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
+# Ajout multiplateforme
+# Détection multi-arch
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm|aarch64|ARM64")
+    set(PLATFORM "arm64")
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|amd64")
+    set(PLATFORM "x86_64")
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "i.86")
+    set(PLATFORM "x86")
+endif()
+
+# Windows APIs
+if(WIN32)
+    target_link_libraries(FreeMajor PRIVATE kernel32 user32 gdi32)
+    add_definitions(-D__WINDOWS_MM__)
+endif()
+
+# macOS universal binary
+if(APPLE)
+    set(CMAKE_OSX_ARCHITECTURES "${CMAKE_SYSTEM_PROCESSOR}" CACHE STRING "")
+endif()
+# Fin ajout pour multiplateforme
+
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")

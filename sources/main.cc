@@ -15,7 +15,34 @@
 #if defined(__APPLE__)
 #include <mach-o/dyld.h>
 #endif
+// Ajout mutliplateforme
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
+const char* get_locale_path(std::string& buf) {
+#ifdef _WIN32
+    std::wstring wpath(512, L'\0');
+    DWORD len = GetModuleFileNameW(NULL, &wpath[0], wpath.size());
+    if (len == 0 || len == 512) return nullptr;
+    wpath.resize(len);
+    
+    // UTF-16 -> UTF-8
+    int utf8size = WideCharToMultiByte(CP_UTF8, 0, wpath.data(), -1, NULL, 0, NULL, NULL);
+    buf.resize(utf8size);
+    WideCharToMultiByte(CP_UTF8, 0, wpath.data(), -1, &buf[0], utf8size, NULL, NULL);
+#else
+    // Linux/macOS existant
+    buf.resize(512);
+    ssize_t len = readlink("/proc/self/exe", &buf[0], buf.size());
+    if (len <= 0) {
+#ifdef __APPLE__
+        _NSGetExecutablePath(&buf[0], (unsigned int*)&buf.size());
+#endif
+    }
+#endif
+// Fin de l'ajout multiplateforme
+    
 namespace Icon {
 #include "../resources/application/FreeMajor.xpm"
 };
