@@ -1,5 +1,4 @@
-# This workflow replaces Travis CI for FreeMajor cross-compilation on Linux, macOS, Windows
-# Builds with cmake .. && cmake --build . and archives binaries for nightly/pre-release/release tags
+# FreeMajor CMake Multi-Platform - FIXED Windows MinGW issue
 name: FreeMajor CMake Multi-Platform
 
 on:
@@ -17,17 +16,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Linux (Ubuntu matching Arch dependencies)
           - os: ubuntu-latest
             name: "Linux"
             build_type: Release
             
-          # macOS
           - os: macos-latest
             name: "macOS"
             build_type: Release
             
-          # Windows (MSYS2/MinGW for Windows 10 compatibility)
           - os: windows-latest
             name: "Windows"
             build_type: Release
@@ -64,58 +60,67 @@ jobs:
       run: |
         brew install cmake fltk gettext
 
-    # === Windows ===
+    # === Windows - FIXED ===
     - name: Setup MSYS2 (Windows)
       if: matrix.os == 'windows-latest'
       uses: msys2/setup-msys2@v2
       with:
         msystem: MINGW64
         install: >-
-          cmake
+          mingw-w64-x86_64-cmake
           mingw-w64-x86_64-fltk
           mingw-w64-x86_64-gettext
+          mingw-w64-x86_64-gcc
+          mingw-w64-x86_64-make
           git
         update: true
+        path-type: minimal
 
-    - name: Configure CMake
+    # Configure Linux/macOS
+    - name: Configure CMake (Linux/macOS)
+      if: matrix.os != 'windows-latest'
       run: |
         cmake -B ${{ steps.strings.outputs.build-output-dir }} \
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
           -S ${{ github.workspace }}
-      shell: bash
-      if: matrix.os != 'windows-latest'
 
+    # Configure Windows - CORRECTED generator
     - name: Configure CMake (Windows)
       if: matrix.os == 'windows-latest'
       shell: msys2 {0}
       run: |
-        cmake -B ${{ steps.strings.outputs.build-output-dir }} \
-          -G "MinGW Makefiles" \
-          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-          -S ${{ github.workspace }}
+        cd ${{ github.workspace }}
+        mkdir -p build
+        cd build
+        cmake .. \
+          -G "MSYS Makefiles" \
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
 
-    - name: Build
-      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
-      shell: bash
+    # Build Linux/macOS
+    - name: Build (Linux/macOS)
       if: matrix.os != 'windows-latest'
+      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
 
+    # Build Windows - CORRECTED shell
     - name: Build (Windows)
       if: matrix.os == 'windows-latest'
       shell: msys2 {0}
-      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+      working-directory: ${{ github.workspace }}/build
+      run: cmake --build . --config ${{ matrix.build_type }}
 
-    # Archive binaries only for releases/nightly/pre-releases
-    - name: Package binaries
+    # Archive only for releases/nightly/pre-releases
+    - name: Package and Upload Linux/macOS
       if: startsWith(github.ref, 'refs/tags/') && 
           (contains(github.ref_name, 'nightly') || 
            contains(github.ref_name, 'pre') || 
-           startsWith(github.ref_name, 'v'))
+           startsWith(github.ref_name, 'v')) &&
+          matrix.os != 'windows-latest'
       shell: bash
       run: |
         cd ${{ steps.strings.outputs.build-output-dir }}
-        # Find and package main executable(s)
-        find . -name "FreeMajor*" -type f -executable | head -5 | xargs tar -czf FreeMajor-${{ matrix.name }}.tar.gz || true
-
+        tar -czf FreeMajor-${{ matrix.name }}.tar.gz FreeMajor FreeMajor.exe */FreeMajor */FreeMajor.exe || true
+        ls -la *.tar.gz
+      # Upload
     - name: Upload Linux/macOS binaries
       if: startsWith(github.ref, 'refs/tags/') && 
           (contains(github.ref_name, 'nightly') || 
@@ -125,7 +130,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: FreeMajor-${{ matrix.name }}
-        path: ${{ steps.strings.outputs.build-output-dir }}/FreeMajor-${{ matrix.name }}.tar.gz
+        path: ${{ steps.strings.outputs.build-output-dir }}/*.tar.gz
         retention-days: 90
 
     - name: Upload Windows binaries
@@ -134,11 +139,24 @@ jobs:
            contains(github.ref_name, 'pre') || 
            startsWith(github.ref_name, 'v')) &&
           matrix.os == 'windows-latest'
+      shell: msys2 {0}
+      run: |
+        cd ${{ github.workspace }}/build
+        ls -la FreeMajor* *.exe */FreeMajor* */*.exe
+        # Package Windows binaries
+        tar -czf FreeMajor-Windows.tar.gz FreeMajor*.exe || true
+      # Upload
+    - name: Upload Windows artifact
+      if: startsWith(github.ref, 'refs/tags/') && 
+          (contains(github.ref_name, 'nightly') || 
+           contains(github.ref_name, 'pre') || 
+           startsWith(github.ref_name, 'v')) &&
+          matrix.os == 'windows-latest'
       uses: actions/upload-artifact@v4
       with:
         name: FreeMajor-Windows
-        path: ${{ steps.strings.outputs.build-output-dir }}/FreeMajor*.exe
+        path: ${{ github.workspace }}/build/*.tar.gz
         retention-days: 90
 
-    - name: Show build output location
-      run: ls -la ${{ steps.strings.outputs.build-output-dir }}/
+    - name: Show build results
+      run: find ${{ steps.strings.outputs.build-output-dir }} -name "FreeMajor*" -type f
