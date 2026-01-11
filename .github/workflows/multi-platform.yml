@@ -57,7 +57,7 @@ jobs:
       run: |
         case "${{ matrix.os }}" in
           linux|macos)
-            cmake --build build --config Release
+            cmake --build build
             ;;
           windows)
             cmake --build build --config Release
