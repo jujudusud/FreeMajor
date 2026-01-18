@@ -1,0 +1,84 @@
+name: Windows Cross Builds
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  release:
+    types: [ published, prereleased ]
+
+jobs:
+  win32:
+    name: Windows 32-bit
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Build Win32
+      run: |
+        docker run --rm -v ${{ github.workspace }}:/workspace -w /workspace \
+          maxrd2/arch-mingw:latest bash -c "
+            mkdir -p build-win32 && cd build-win32
+            i686-w64-mingw32-cmake -G 'Unix Makefiles' 
+              -DCMAKE_BUILD_TYPE=Release 
+              -DENABLE_GETTEXT=ON 
+              -DFL exonerate_FLTK_SKIP_OPENGL=ON ..
+            make -j\$(nproc)
+            make package
+            mkdir -p ../release
+            cp FreeMajor-*.zip ../release/FreeMajor-dev-win32.zip || 
+            cp FreeMajor.exe ../release/FreeMajor-dev-win32.zip || true
+          "
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: FreeMajor-dev-win32
+        path: release/FreeMajor-dev-win32.zip
+
+  win64:
+    name: Windows 64-bit
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Build Win64
+      run: |
+        docker run --rm -v ${{ github.workspace }}:/workspace -w /workspace \
+          maxrd2/arch-mingw:latest bash -c "
+            mkdir -p build-win64 && cd build-win64
+            x86_64-w64-mingw32-cmake -G 'Unix Makefiles' 
+              -DCMAKE_BUILD_TYPE=Release 
+              -DENABLE_GETTEXT=ON 
+              -DFL exonerate_FLTK_SKIP_OPENGL=ON ..
+            make -j\$(nproc)
+            make package
+            mkdir -p ../release
+            cp FreeMajor-*.zip ../release/FreeMajor-dev-win64.zip || 
+            cp FreeMajor.exe ../release/FreeMajor-dev-win64.zip || true
+          "
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: FreeMajor-dev-win64
+        path: release/FreeMajor-dev-win64.zip
+
+  release:
+    needs: [win32, win64]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          artifacts/FreeMajor-dev-win32/**/*.zip
+          artifacts/FreeMajor-dev-win64/**/*.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
