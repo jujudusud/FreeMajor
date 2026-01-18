@@ -1,0 +1,129 @@
+name: Cross Platform Builds
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+  release:
+    types: [ published ]
+
+jobs:
+  win32:
+    name: Windows 32-bit
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Build Win32
+      run: |
+        docker run --rm -v ${{ github.workspace }}:/workspace -w /workspace \
+          maxrd2/arch-mingw:latest \
+          bash -c "
+            mkdir -p release build
+            cd build
+            i686-w64-mingw32-cmake -G 'Unix Makefiles' -DCMAKE_BUILD_TYPE=Release -DENABLE_GETTEXT=ON ..
+            make -j\$(nproc)
+            cpack -G ZIP
+            cp FreeMajor-*.zip ../release/FreeMajor-dev-win32.zip || true
+            cd ..
+          "
+
+    - name: Upload Win32 artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: FreeMajor-dev-win32
+        path: release/FreeMajor-dev-win32.zip
+
+  win64:
+    name: Windows 64-bit
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Build Win64
+      run: |
+        docker run --rm -v ${{ github.workspace }}:/workspace -w /workspace \
+          maxrd2/arch-mingw:latest \
+          bash -c "
+            mkdir -p release build
+            cd build
+            x86_64-w64-mingw32-cmake -G 'Unix Makefiles' -DCMAKE_BUILD_TYPE=Release -DENABLE_GETTEXT=ON ..
+            make -j\$(nproc)
+            cpack -G ZIP
+            cp FreeMajor-*.zip ../release/FreeMajor-dev-win64.zip || true
+            cd ..
+          "
+
+    - name: Upload Win64 artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: FreeMajor-dev-win64
+        path: release/FreeMajor-dev-win64.zip
+
+  macos:
+    name: macOS
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Build macOS
+      run: |
+        docker run --rm -v ${{ github.workspace }}:/workspace -w /workspace \
+          --platform linux/amd64 \
+          jasonrr/osx-cross:latest \
+          bash -c "
+            export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/osxcross/target/bin
+            export MACOSX_DEPLOYMENT_TARGET=10.7
+            mkdir -p release build
+            cd build
+            x86_64-apple-darwin17-cmake -G 'Unix Makefiles' -DCMAKE_BUILD_TYPE=Release -DENABLE_GETTEXT=ON ..
+            make -j\$(nproc)
+            cpack -G ZIP
+            cp FreeMajor-*.zip ../release/FreeMajor-dev-mac.zip || true
+            cd ..
+          "
+
+    - name: Upload macOS artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: FreeMajor-dev-mac
+        path: release/FreeMajor-dev-mac.zip
+
+  release:
+    name: Release
+    needs: [win32, win64, macos]
+    if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Tag automatic release
+      run: |
+        git tag -f automatic
+        git push origin automatic --force
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: automatic
+        prerelease: true
+        files: |
+          artifacts/FreeMajor-dev-win32/**/*.zip
+          artifacts/FreeMajor-dev-win64/**/*.zip
+          artifacts/FreeMajor-dev-mac/**/*.zip
+        overwrite: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
