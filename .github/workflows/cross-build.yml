@@ -1,4 +1,4 @@
-name: Cross Platform Builds
+name: Windows Cross Builds
 
 on:
   push:
@@ -64,40 +64,9 @@ jobs:
         name: FreeMajor-dev-win64
         path: release/FreeMajor-dev-win64.zip
 
-  macos:
-    name: macOS
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Build macOS
-      run: |
-        docker run --rm -v ${{ github.workspace }}:/workspace -w /workspace \
-          --platform linux/amd64 \
-          jasonrr/osx-cross:latest \
-          bash -c "
-            export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/osxcross/target/bin
-            export MACOSX_DEPLOYMENT_TARGET=10.7
-            mkdir -p release build
-            cd build
-            x86_64-apple-darwin17-cmake -G 'Unix Makefiles' -DCMAKE_BUILD_TYPE=Release -DENABLE_GETTEXT=ON ..
-            make -j\$(nproc)
-            cpack -G ZIP
-            cp FreeMajor-*.zip ../release/FreeMajor-dev-mac.zip || true
-            cd ..
-          "
-
-    - name: Upload macOS artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: FreeMajor-dev-mac
-        path: release/FreeMajor-dev-mac.zip
-
   release:
     name: Release
-    needs: [win32, win64, macos]
+    needs: [win32, win64]
     if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
@@ -109,6 +78,7 @@ jobs:
       run: |
         git tag -f automatic
         git push origin automatic --force
+        echo "tag=automatic" >> $GITHUB_ENV
 
     - name: Download all artifacts
       uses: actions/download-artifact@v4
@@ -123,7 +93,6 @@ jobs:
         files: |
           artifacts/FreeMajor-dev-win32/**/*.zip
           artifacts/FreeMajor-dev-win64/**/*.zip
-          artifacts/FreeMajor-dev-mac/**/*.zip
         overwrite: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
