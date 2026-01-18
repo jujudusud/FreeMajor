@@ -1,0 +1,114 @@
+name: FreeMajor All Platforms
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  release:
+    types: [ published, prereleased ]
+
+jobs:
+  native:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: "Linux"
+            build_type: Release
+          - os: macos-latest
+            name: "macOS"
+            build_type: Release
+    steps:
+    # ... garde EXACTEMENT tes steps existants pour Linux/macOS ...
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Set reusable strings
+      id: strings
+      shell: bash
+      run: |
+        echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
+
+    - name: Install Linux dependencies
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake build-essential libasound2-dev \
+          libjack-jackd2-dev libfltk1.3-dev gettext git
+
+    - name: Install macOS dependencies
+      if: matrix.os == 'macos-latest'
+      run: brew install cmake fltk gettext
+
+    - name: Configure CMake
+      run: |
+        cmake -B ${{ steps.strings.outputs.build-output-dir }} \
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+          -S ${{ github.workspace }}
+
+    - name: Build
+      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+
+    - name: List build results
+      if: always()
+      run: find ${{ steps.strings.outputs.build-output-dir }} -name "*FreeMajor*" -type f 2>/dev/null || true
+
+    - name: Package binaries
+      if: startsWith(github.ref, 'refs/tags/')
+      shell: bash
+      run: |
+        cd ${{ steps.strings.outputs.build-output-dir }}
+        find . -name "*FreeMajor*" -type f -executable 2>/dev/null | head -5 | xargs tar -czf FreeMajor-${{ matrix.name }}.tar.gz || true
+
+    - name: Upload binaries
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: actions/upload-artifact@v4
+      with:
+        name: FreeMajor-${{ matrix.name }}
+        path: ${{ steps.strings.outputs.build-output-dir }}/*.tar.gz
+
+  windows:
+    name: Windows 32/64-bit
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    # Win32
+    - name: Build Win32
+      run: |
+        docker run --rm -v ${{ github.workspace }}:/workspace -w /workspace \
+          maxrd2/arch-mingw:latest bash -c "
+            mkdir -p build-win32 && cd build-win32
+            i686-w64-mingw32-cmake -G 'Unix Makefiles' -DCMAKE_BUILD_TYPE=Release -DENABLE_GETTEXT=ON ..
+            make -j\$(nproc)
+            cpack -G ZIP
+            cp FreeMajor-*.zip ../FreeMajor-dev-win32.zip || true
+          "
+
+    # Win64  
+    - name: Build Win64
+      run: |
+        docker run --rm -v ${{ github.workspace }}:/workspace -w /workspace \
+          maxrd2/arch-mingw:latest bash -c "
+            mkdir -p build-win64 && cd build-win64
+            x86_64-w64-mingw32-cmake -G 'Unix Makefiles' -DCMAKE_BUILD_TYPE=Release -DENABLE_GETTEXT=ON ..
+            make -j\$(nproc)
+            cpack -G ZIP
+            cp FreeMajor-*.zip ../FreeMajor-dev-win64.zip || true
+          "
+
+    - name: Upload Windows artifacts
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: actions/upload-artifact@v4
+      with:
+        name: FreeMajor-Windows
+        path: |
+          FreeMajor-dev-win32.zip
+          FreeMajor-dev-win64.zip
