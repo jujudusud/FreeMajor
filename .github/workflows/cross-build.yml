@@ -25,8 +25,9 @@ jobs:
             cd build
             i686-w64-mingw32-cmake -G 'Unix Makefiles' -DCMAKE_BUILD_TYPE=Release -DENABLE_GETTEXT=ON ..
             make -j\$(nproc)
-            cpack -G ZIP
-            cp FreeMajor-*.zip ../release/FreeMajor-dev-win32.zip || true
+            cpack -G ZIP || true
+            mkdir -p ../release
+            find . -name "*.exe" -o -name "*.zip" | xargs -I {} cp {} ../release/FreeMajor-dev-win32.zip || true
             cd ..
           "
 
@@ -53,8 +54,9 @@ jobs:
             cd build
             x86_64-w64-mingw32-cmake -G 'Unix Makefiles' -DCMAKE_BUILD_TYPE=Release -DENABLE_GETTEXT=ON ..
             make -j\$(nproc)
-            cpack -G ZIP
-            cp FreeMajor-*.zip ../release/FreeMajor-dev-win64.zip || true
+            cpack -G ZIP || true
+            mkdir -p ../release
+            find . -name "*.exe" -o -name "*.zip" | xargs -I {} cp {} ../release/FreeMajor-dev-win32.zip || true
             cd ..
           "
 
