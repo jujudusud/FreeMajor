@@ -22,7 +22,6 @@ jobs:
             name: "macOS"
             build_type: Release
     steps:
-    # ... garde EXACTEMENT tes steps existants pour Linux/macOS ...
     - name: Checkout code
       uses: actions/checkout@v4
       with:
@@ -88,8 +87,9 @@ jobs:
             mkdir -p build-win32 && cd build-win32
             i686-w64-mingw32-cmake -G 'Unix Makefiles' -DCMAKE_BUILD_TYPE=Release -DENABLE_GETTEXT=ON ..
             make -j\$(nproc)
-            cpack -G ZIP
-            cp FreeMajor-*.zip ../FreeMajor-dev-win32.zip || true
+            cpack -G ZIP || true
+            mkdir -p ../release
+            find . -name "*.exe" -o -name "*.zip" | xargs -I {} cp {} ../release/FreeMajor-dev-win32.zip || true
           "
 
     # Win64  
@@ -100,9 +100,10 @@ jobs:
             mkdir -p build-win64 && cd build-win64
             x86_64-w64-mingw32-cmake -G 'Unix Makefiles' -DCMAKE_BUILD_TYPE=Release -DENABLE_GETTEXT=ON ..
             make -j\$(nproc)
-            cpack -G ZIP
-            cp FreeMajor-*.zip ../FreeMajor-dev-win64.zip || true
-          "
+            cpack -G ZIP || true
+            mkdir -p ../release
+            find . -name "*.exe" -o -name "*.zip" | xargs -I {} cp {} ../release/FreeMajor-dev-win32.zip || true
+            "
 
     - name: Upload Windows artifacts
       if: startsWith(github.ref, 'refs/tags/')
